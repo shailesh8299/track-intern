@@ -15,12 +15,22 @@ import {
   Typography,
   Tooltip,
   Box,
+  Select,
+  Option,
+  Divider,
 } from "@mui/joy";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useAuth } from "../context/AuthContext";
 import { Textarea } from "@mui/joy";
+
+function statusColor(status) {
+  if (status === "completed") return "success";
+  if (status === "in-progress") return "warning";
+  if (status === "blocked") return "danger";
+  return "neutral";
+}
 
 // Utility: returns YYYY-MM-DD string
 const formatDate = (dateObj) => dateObj.toISOString().slice(0, 10);
@@ -46,7 +56,17 @@ function isDateInRange(date, min, max) {
 }
 
 function InternPage() {
-  const { user, getTasksForUser, addTask, editTask, deleteTask } = useAuth();
+  const {
+    user,
+    getTasksForUser,
+    addTask,
+    editTask,
+    deleteTask,
+    markAttendance,
+    getAttendanceForUser,
+    createLeaveRequest,
+    getLeavesForUser,
+  } = useAuth();
   const [open, setOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [form, setForm] = useState({
@@ -61,12 +81,34 @@ function InternPage() {
   const { minDate, maxDate } = getDateLimits();
   const [deleteTaskId, setDeleteTaskId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [attendanceDate, setAttendanceDate] = useState(formatDate(new Date()));
+  const [attendanceStatus, setAttendanceStatus] = useState("present");
+  const [attendanceNote, setAttendanceNote] = useState("");
+  const [attendanceRows, setAttendanceRows] = useState([]);
+  const [leaveForm, setLeaveForm] = useState({ fromDate: "", toDate: "", reason: "" });
+  const [leaveRows, setLeaveRows] = useState([]);
+
+  const filteredTasks =
+    statusFilter === "all"
+      ? tasks
+      : tasks.filter((task) => (task.status || "pending") === statusFilter);
 
   useEffect(() => {
-    if (user) {
-      getTasksForUser(user.id).then(setTasks);
+    async function loadData() {
+      if (!user) return;
+      const [taskData, attendanceData, leaveData] = await Promise.all([
+        getTasksForUser(user.id),
+        getAttendanceForUser(user.id),
+        getLeavesForUser(user.id),
+      ]);
+      setTasks(taskData);
+      setAttendanceRows(attendanceData);
+      setLeaveRows(leaveData);
     }
-  }, [user, refresh, getTasksForUser]);
+
+    loadData();
+  }, [user, refresh, getTasksForUser, getAttendanceForUser, getLeavesForUser]);
 
   const handleOpen = (task = null) => {
     if (task) {
@@ -134,6 +176,30 @@ function InternPage() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleMarkAttendance = async () => {
+    if (!attendanceDate) return;
+    await markAttendance({
+      userId: user.id,
+      date: attendanceDate,
+      status: attendanceStatus,
+      note: attendanceNote,
+    });
+    setAttendanceNote("");
+    setRefresh((v) => !v);
+  };
+
+  const handleLeaveSubmit = async () => {
+    if (!leaveForm.fromDate || !leaveForm.toDate) return;
+    await createLeaveRequest({
+      userId: user.id,
+      fromDate: leaveForm.fromDate,
+      toDate: leaveForm.toDate,
+      reason: leaveForm.reason,
+    });
+    setLeaveForm({ fromDate: "", toDate: "", reason: "" });
+    setRefresh((v) => !v);
+  };
+
   return (
     <Sheet
       sx={{
@@ -169,26 +235,48 @@ function InternPage() {
           first task.
         </Typography>
       ) : (
-        <Table
-          aria-label="task table"
-          variant="soft"
-          sx={{
-            mt: 2,
-            borderRadius: "md",
-            overflow: "hidden",
-            tableLayout: "fixed",
-            "& th, & td": {
-              verticalAlign: "top",
-              wordBreak: "break-word",
-              whiteSpace: "pre-line",
-            },
-          }}
-        >
+        <>
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1.5 }}>
+            {[
+              { key: "all", label: "All" },
+              { key: "pending", label: "Pending" },
+              { key: "in-progress", label: "In Progress" },
+              { key: "completed", label: "Completed" },
+              { key: "blocked", label: "Blocked" },
+            ].map((item) => (
+              <Button
+                key={item.key}
+                size="sm"
+                variant={statusFilter === item.key ? "solid" : "soft"}
+                onClick={() => setStatusFilter(item.key)}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </Box>
+
+          <Table
+            aria-label="task table"
+            variant="soft"
+            sx={{
+              mt: 2,
+              borderRadius: "md",
+              overflow: "hidden",
+              tableLayout: "fixed",
+              "& th, & td": {
+                verticalAlign: "top",
+                wordBreak: "break-word",
+                whiteSpace: "pre-line",
+              },
+            }}
+          >
           <colgroup>
             <col style={{ width: "110px" }} />
             <col style={{ width: "120px" }} />
             <col style={{ width: "70px" }} />
-            <col style={{ width: "230px" }} />
+            <col style={{ width: "170px" }} />
+            <col style={{ width: "110px" }} />
+            <col style={{ width: "170px" }} />
             <col style={{ width: "50px" }} />
             <col style={{ width: "60px" }} />
           </colgroup>
@@ -198,12 +286,14 @@ function InternPage() {
               <th>Task</th>
               <th>Hours</th>
               <th>Description</th>
+              <th>Status</th>
+              <th>Supervisor Comment</th>
               <th>Edit</th>
               <th>Delete</th>
             </tr>
           </thead>
           <tbody>
-            {tasks.map((t) => (
+            {filteredTasks.map((t) => (
               <tr key={t.id}>
                 <td>{t.date ? t.date.slice(0, 10) : ""}</td>
                 <td>{t.task}</td>
@@ -211,13 +301,35 @@ function InternPage() {
                 <td>
                   <Typography
                     sx={{
-                      maxWidth: "220px",
+                      maxWidth: "160px",
                       overflowWrap: "break-word",
                       whiteSpace: "pre-line",
                     }}
                     level="body-sm"
                   >
                     {t.description}
+                  </Typography>
+                </td>
+                <td>
+                  <Typography
+                    level="body-sm"
+                    color={statusColor(t.status)}
+                    sx={{ textTransform: "capitalize", fontWeight: 600 }}
+                  >
+                    {t.status || "pending"}
+                  </Typography>
+                </td>
+                <td>
+                  <Typography
+                    sx={{
+                      maxWidth: "160px",
+                      overflowWrap: "break-word",
+                      whiteSpace: "pre-line",
+                    }}
+                    level="body-sm"
+                    color="neutral"
+                  >
+                    {t.review_comment || "-"}
                   </Typography>
                 </td>
                 <td>
@@ -246,7 +358,13 @@ function InternPage() {
               </tr>
             ))}
           </tbody>
-        </Table>
+          </Table>
+          {filteredTasks.length === 0 && (
+            <Typography level="body-sm" color="neutral" sx={{ mt: 1 }}>
+              No tasks found for selected status.
+            </Typography>
+          )}
+        </>
       )}
 
       {/* Delete Modal */}
@@ -341,6 +459,93 @@ function InternPage() {
           </DialogContent>
         </ModalDialog>
       </Modal>
+
+      <Divider sx={{ my: 3 }} />
+
+      <Typography level="h4" sx={{ mb: 1.5 }}>
+        Attendance
+      </Typography>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr auto" }, gap: 1, mb: 2 }}>
+        <Input type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)} />
+        <Select value={attendanceStatus} onChange={(_, value) => setAttendanceStatus(value || "present")}> 
+          <Option value="present">Present</Option>
+          <Option value="wfh">WFH</Option>
+          <Option value="absent">Absent</Option>
+        </Select>
+        <Input
+          placeholder="Note (optional)"
+          value={attendanceNote}
+          onChange={(e) => setAttendanceNote(e.target.value)}
+        />
+        <Button onClick={handleMarkAttendance}>Mark</Button>
+      </Box>
+
+      {attendanceRows.length > 0 && (
+        <Table size="sm" variant="soft" sx={{ mb: 3 }}>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Status</th>
+              <th>Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            {attendanceRows.slice(0, 10).map((row) => (
+              <tr key={row.id}>
+                <td>{row.attendance_date?.slice(0, 10)}</td>
+                <td style={{ textTransform: "capitalize" }}>{row.status}</td>
+                <td>{row.note || "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
+
+      <Typography level="h4" sx={{ mb: 1.5 }}>
+        Leave Requests
+      </Typography>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1, mb: 1 }}>
+        <Input
+          type="date"
+          value={leaveForm.fromDate}
+          onChange={(e) => setLeaveForm((prev) => ({ ...prev, fromDate: e.target.value }))}
+        />
+        <Input
+          type="date"
+          value={leaveForm.toDate}
+          onChange={(e) => setLeaveForm((prev) => ({ ...prev, toDate: e.target.value }))}
+        />
+      </Box>
+      <Textarea
+        minRows={2}
+        placeholder="Reason (optional)"
+        value={leaveForm.reason}
+        onChange={(e) => setLeaveForm((prev) => ({ ...prev, reason: e.target.value }))}
+      />
+      <Button sx={{ mt: 1.5, mb: 2 }} onClick={handleLeaveSubmit}>Submit Leave Request</Button>
+
+      {leaveRows.length > 0 && (
+        <Table size="sm" variant="soft">
+          <thead>
+            <tr>
+              <th>From</th>
+              <th>To</th>
+              <th>Status</th>
+              <th>Review</th>
+            </tr>
+          </thead>
+          <tbody>
+            {leaveRows.slice(0, 10).map((row) => (
+              <tr key={row.id}>
+                <td>{row.from_date?.slice(0, 10)}</td>
+                <td>{row.to_date?.slice(0, 10)}</td>
+                <td style={{ textTransform: "capitalize" }}>{row.status}</td>
+                <td>{row.review_comment || "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
     </Sheet>
   );
 }

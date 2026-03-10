@@ -38,10 +38,6 @@ function LoginPage() {
     const success = await login({ email: data.email, password: data.password });
     if (!success) setError("Invalid email or password.");
   };
-  function signin(e){
-    e.preventDefault();
-    navigate("/signin");
-  }
   function signUp(e) {
     e.preventDefault();
     navigate("/signup");
@@ -49,7 +45,7 @@ function LoginPage() {
 
   function forgotPassword(e) {
     e.preventDefault();
-    alert("Forgot Password functionality is not implemented yet.");
+    navigate("/forgot-password");
   }
 
   if (user && !showSuccess) return <></>;
@@ -157,6 +153,15 @@ function LoginPage() {
                   {errors.password.message}
                 </p>
               )}
+            </div>
+            <div className="mb-4 text-right">
+              <button
+                type="button"
+                className="text-sm text-purple-700 font-medium cursor-pointer"
+                onClick={forgotPassword}
+              >
+                Forgot password?
+              </button>
             </div>
             <Snackbar
               open={!!error}

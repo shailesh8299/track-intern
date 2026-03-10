@@ -118,6 +118,67 @@ export function AuthProvider({ children }) {
     return await response.json();
   };
 
+  const reviewTask = async (taskId, payload) => {
+    const response = await fetch(`http://localhost:4000/api/tasks/${taskId}/review`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return await response.json();
+  };
+
+  const markAttendance = async (payload) => {
+    const response = await fetch("http://localhost:4000/api/attendance/mark", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return await response.json();
+  };
+
+  const getAttendanceForUser = async (userId) => {
+    const response = await fetch(`http://localhost:4000/api/attendance/user/${userId}`);
+    return await response.json();
+  };
+
+  const getAttendanceForSupervisor = async (supervisorId) => {
+    const response = await fetch(`http://localhost:4000/api/attendance/supervisor/${supervisorId}`);
+    return await response.json();
+  };
+
+  const createLeaveRequest = async (payload) => {
+    const response = await fetch("http://localhost:4000/api/leaves", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return await response.json();
+  };
+
+  const getLeavesForUser = async (userId) => {
+    const response = await fetch(`http://localhost:4000/api/leaves/user/${userId}`);
+    return await response.json();
+  };
+
+  const getLeavesForSupervisor = async (supervisorId) => {
+    const response = await fetch(`http://localhost:4000/api/leaves/supervisor/${supervisorId}`);
+    return await response.json();
+  };
+
+  const reviewLeave = async (leaveId, payload) => {
+    const response = await fetch(`http://localhost:4000/api/leaves/${leaveId}/review`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return await response.json();
+  };
+
+  const getAnalyticsOverview = async () => {
+    const response = await fetch("http://localhost:4000/api/analytics/overview");
+    return await response.json();
+  };
+
   const getUserProfile = async (userId) => {
     const response = await fetch(`http://localhost:4000/api/users/${userId}/profile`);
     return await response.json();
@@ -157,6 +218,15 @@ export function AuthProvider({ children }) {
         getTasksForUser,
         editTask,
         deleteTask,
+        reviewTask,
+        markAttendance,
+        getAttendanceForUser,
+        getAttendanceForSupervisor,
+        createLeaveRequest,
+        getLeavesForUser,
+        getLeavesForSupervisor,
+        reviewLeave,
+        getAnalyticsOverview,
         getUserProfile,
         updateUserProfile,
       }}

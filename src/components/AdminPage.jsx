@@ -33,6 +33,7 @@ function AdminPage() {
     approveUser,
     getSupervisors,
     getAllUsers,
+    getAnalyticsOverview,
   } = useAuth();
 
   const [pendingRole, setPendingRole] = useState({});
@@ -43,12 +44,23 @@ function AdminPage() {
   const [pendingUsers, setPendingUsers] = useState([]);
   const [supervisors, setSupervisors] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
 
   // Fetch data on mount and after any approval
   const fetchData = async () => {
-    setPendingUsers(await getPendingUsers());
-    setSupervisors(await getSupervisors());
-    setAllUsers(await getAllUsers());
+    const [pending, sup, users, analyticsRes] = await Promise.all([
+      getPendingUsers(),
+      getSupervisors(),
+      getAllUsers(),
+      getAnalyticsOverview(),
+    ]);
+
+    setPendingUsers(pending);
+    setSupervisors(sup);
+    setAllUsers(users);
+    if (analyticsRes.success) {
+      setAnalytics(analyticsRes.overview);
+    }
   };
 
   useEffect(() => {
@@ -91,6 +103,70 @@ function AdminPage() {
         Admin Dashboard
       </Typography>
       <Divider sx={{ mb: 3 }} />
+
+      {analytics && (
+        <Box sx={{ mb: 4 }}>
+          <Typography level="h4" sx={{ mb: 2 }}>
+            Platform Analytics
+          </Typography>
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", md: "repeat(4, 1fr)" },
+              gap: 1.5,
+              mb: 2,
+            }}
+          >
+            <Sheet variant="soft" sx={{ p: 2, borderRadius: "md" }}>
+              <Typography level="body-sm">Total Users</Typography>
+              <Typography level="h3">{analytics.users.total_users}</Typography>
+              <Typography level="body-xs" color="neutral">
+                Active: {analytics.users.active_users} | Pending: {analytics.users.pending_users}
+              </Typography>
+            </Sheet>
+            <Sheet variant="soft" sx={{ p: 2, borderRadius: "md" }}>
+              <Typography level="body-sm">Tasks</Typography>
+              <Typography level="h3">{analytics.tasks.total_tasks}</Typography>
+              <Typography level="body-xs" color="neutral">
+                Completed: {analytics.tasks.completed_tasks} | Blocked: {analytics.tasks.blocked_tasks}
+              </Typography>
+            </Sheet>
+            <Sheet variant="soft" sx={{ p: 2, borderRadius: "md" }}>
+              <Typography level="body-sm">Attendance Entries</Typography>
+              <Typography level="h3">{analytics.attendance.total_attendance}</Typography>
+              <Typography level="body-xs" color="neutral">
+                Present: {analytics.attendance.present_days} | Absent: {analytics.attendance.absent_days}
+              </Typography>
+            </Sheet>
+            <Sheet variant="soft" sx={{ p: 2, borderRadius: "md" }}>
+              <Typography level="body-sm">Leave Requests</Typography>
+              <Typography level="h3">{analytics.leaves.total_leave_requests}</Typography>
+              <Typography level="body-xs" color="neutral">
+                Pending: {analytics.leaves.pending_leave_requests} | Approved: {analytics.leaves.approved_leave_requests}
+              </Typography>
+            </Sheet>
+          </Box>
+
+          <Table size="sm" variant="soft" sx={{ mb: 2 }}>
+            <thead>
+              <tr>
+                <th>Top Intern</th>
+                <th>Email</th>
+                <th>Total Hours</th>
+              </tr>
+            </thead>
+            <tbody>
+              {analytics.topInternHours.map((item) => (
+                <tr key={item.email}>
+                  <td>{item.name}</td>
+                  <td>{item.email}</td>
+                  <td>{item.hours}</td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </Box>
+      )}
 
       <Box sx={{ mb: 6 }}>
         <Typography level="h4" sx={{ mb: 2 }}>

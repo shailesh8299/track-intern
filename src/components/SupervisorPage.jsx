@@ -17,6 +17,9 @@ import {
   Button,
   Divider,
   Chip,
+  Select,
+  Option,
+  Textarea,
 } from "@mui/joy";
 import DownloadIcon from "@mui/icons-material/Download";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -67,12 +70,30 @@ function truncateDescription(description, maxLines = 2, maxCharsPerLine = 60) {
 }
 
 function SupervisorPage() {
-  const { user, getInternsOfSupervisor, getTasksForUser } = useAuth();
+  const {
+    user,
+    getInternsOfSupervisor,
+    getTasksForUser,
+    reviewTask,
+    getAttendanceForSupervisor,
+    getLeavesForSupervisor,
+    reviewLeave,
+  } = useAuth();
   const [interns, setInterns] = useState([]);
   const [taskCounts, setTaskCounts] = useState({});
   const [selectedIntern, setSelectedIntern] = useState(null);
   const [selectedInternTasks, setSelectedInternTasks] = useState([]);
   const [open, setOpen] = useState(false);
+  const [savingTaskId, setSavingTaskId] = useState(null);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [attendanceRows, setAttendanceRows] = useState([]);
+  const [leaveRows, setLeaveRows] = useState([]);
+  const [leaveReviewDraft, setLeaveReviewDraft] = useState({});
+
+  const filteredTasks =
+    statusFilter === "all"
+      ? selectedInternTasks
+      : selectedInternTasks.filter((task) => (task.status || "pending") === statusFilter);
 
   useEffect(() => {
     async function fetchData() {
@@ -86,15 +107,50 @@ function SupervisorPage() {
         counts[intern.id] = tasks.length;
       }
       setTaskCounts(counts);
+
+      setAttendanceRows(await getAttendanceForSupervisor(user.id));
+      setLeaveRows(await getLeavesForSupervisor(user.id));
     }
     if (user) fetchData();
-  }, [user, getInternsOfSupervisor, getTasksForUser]);
+  }, [user, getInternsOfSupervisor, getTasksForUser, getAttendanceForSupervisor, getLeavesForSupervisor]);
 
   const handleViewIntern = async (intern) => {
     setSelectedIntern(intern);
     const data = await getTasksForUser(intern.id);
     setSelectedInternTasks(data);
+    setStatusFilter("all");
     setOpen(true);
+  };
+
+  const updateTaskReviewLocally = (taskId, key, value) => {
+    setSelectedInternTasks((prev) =>
+      prev.map((task) => (task.id === taskId ? { ...task, [key]: value } : task))
+    );
+  };
+
+  const handleSaveReview = async (taskId) => {
+    const task = selectedInternTasks.find((item) => item.id === taskId);
+    if (!task) return;
+
+    setSavingTaskId(taskId);
+    await reviewTask(taskId, {
+      status: task.status || "pending",
+      reviewComment: task.review_comment || "",
+    });
+    setSavingTaskId(null);
+  };
+
+  const handleLeaveDecision = async (leaveId, status) => {
+    const reviewComment = leaveReviewDraft[leaveId] || "";
+    const data = await reviewLeave(leaveId, {
+      status,
+      reviewComment,
+      reviewerId: user.id,
+    });
+
+    if (data.success) {
+      setLeaveRows(await getLeavesForSupervisor(user.id));
+    }
   };
 
   // Format date to YYYY-MM-DD
@@ -185,6 +241,90 @@ function SupervisorPage() {
         </List>
       )}
 
+      <Divider sx={{ my: 3 }} />
+
+      <Typography level="h4" sx={{ mb: 2 }}>
+        Intern Attendance (Recent)
+      </Typography>
+      {attendanceRows.length === 0 ? (
+        <Typography color="neutral" sx={{ mb: 3 }}>No attendance records yet.</Typography>
+      ) : (
+        <Table size="sm" variant="soft" sx={{ mb: 3 }}>
+          <thead>
+            <tr>
+              <th>Intern</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th>Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            {attendanceRows.slice(0, 15).map((row) => (
+              <tr key={row.id}>
+                <td>{row.name}</td>
+                <td>{row.attendance_date?.slice(0, 10)}</td>
+                <td style={{ textTransform: "capitalize" }}>{row.status}</td>
+                <td>{row.note || "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
+
+      <Typography level="h4" sx={{ mb: 2 }}>
+        Leave Requests
+      </Typography>
+      {leaveRows.length === 0 ? (
+        <Typography color="neutral">No leave requests yet.</Typography>
+      ) : (
+        <Table size="sm" variant="soft">
+          <thead>
+            <tr>
+              <th>Intern</th>
+              <th>From</th>
+              <th>To</th>
+              <th>Reason</th>
+              <th>Status</th>
+              <th>Comment</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {leaveRows.slice(0, 15).map((row) => (
+              <tr key={row.id}>
+                <td>{row.intern_name}</td>
+                <td>{row.from_date?.slice(0, 10)}</td>
+                <td>{row.to_date?.slice(0, 10)}</td>
+                <td>{row.reason || "-"}</td>
+                <td style={{ textTransform: "capitalize" }}>{row.status}</td>
+                <td>
+                  <Textarea
+                    minRows={2}
+                    size="sm"
+                    value={leaveReviewDraft[row.id] ?? row.review_comment ?? ""}
+                    onChange={(e) =>
+                      setLeaveReviewDraft((prev) => ({ ...prev, [row.id]: e.target.value }))
+                    }
+                    placeholder="Add review comment"
+                    sx={{ minWidth: 170 }}
+                  />
+                </td>
+                <td>
+                  <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                    <Button size="sm" color="success" onClick={() => handleLeaveDecision(row.id, "approved")}>
+                      Approve
+                    </Button>
+                    <Button size="sm" color="danger" onClick={() => handleLeaveDecision(row.id, "rejected")}>
+                      Reject
+                    </Button>
+                  </Box>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
+
       <Modal open={open} onClose={() => setOpen(false)}>
         <ModalDialog sx={{ minWidth: 420, maxWidth: 650 }}>
           <DialogTitle>
@@ -204,22 +344,45 @@ function SupervisorPage() {
               </Typography>
             )}
             {selectedIntern && selectedInternTasks.length > 0 && (
-              <Table
-                aria-label="Intern task table"
-                size="sm"
-                variant="soft"
-                sx={{ borderRadius: "md", overflow: "hidden", mt: 1 }}
-              >
+              <>
+                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1 }}>
+                  {[
+                    { key: "all", label: "All" },
+                    { key: "pending", label: "Pending" },
+                    { key: "in-progress", label: "In Progress" },
+                    { key: "completed", label: "Completed" },
+                    { key: "blocked", label: "Blocked" },
+                  ].map((item) => (
+                    <Button
+                      key={item.key}
+                      size="sm"
+                      variant={statusFilter === item.key ? "solid" : "soft"}
+                      onClick={() => setStatusFilter(item.key)}
+                    >
+                      {item.label}
+                    </Button>
+                  ))}
+                </Box>
+
+                <Table
+                  aria-label="Intern task table"
+                  size="sm"
+                  variant="soft"
+                  sx={{ borderRadius: "md", overflow: "hidden", mt: 1 }}
+                >
                 <thead>
                   <tr>
                     <th>Date</th>
                     <th>Task</th>
                     <th>Hours</th>
                     <th>Description</th>
+                    <th>Status</th>
+                    <th>Review</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedInternTasks.map((task) => (
+                  {filteredTasks.map((task) => (
                     <tr key={task.id}>
                       <td>
                         <Typography level="body-md">
@@ -249,10 +412,52 @@ function SupervisorPage() {
                           {truncateDescription(task.description)}
                         </Typography>
                       </td>
+                      <td>
+                        <Select
+                          size="sm"
+                          value={task.status || "pending"}
+                          onChange={(_, value) =>
+                            updateTaskReviewLocally(task.id, "status", value || "pending")
+                          }
+                          sx={{ minWidth: 120 }}
+                        >
+                          <Option value="pending">Pending</Option>
+                          <Option value="in-progress">In Progress</Option>
+                          <Option value="completed">Completed</Option>
+                          <Option value="blocked">Blocked</Option>
+                        </Select>
+                      </td>
+                      <td>
+                        <Textarea
+                          minRows={2}
+                          size="sm"
+                          value={task.review_comment || ""}
+                          placeholder="Add review"
+                          onChange={(e) =>
+                            updateTaskReviewLocally(task.id, "review_comment", e.target.value)
+                          }
+                          sx={{ minWidth: 180 }}
+                        />
+                      </td>
+                      <td>
+                        <Button
+                          size="sm"
+                          onClick={() => handleSaveReview(task.id)}
+                          loading={savingTaskId === task.id}
+                        >
+                          Save
+                        </Button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
-              </Table>
+                </Table>
+                {filteredTasks.length === 0 && (
+                  <Typography level="body-sm" color="neutral" sx={{ mt: 1 }}>
+                    No tasks found for selected status.
+                  </Typography>
+                )}
+              </>
             )}
           </DialogContent>
           <DialogActions>
