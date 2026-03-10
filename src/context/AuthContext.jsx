@@ -118,6 +118,26 @@ export function AuthProvider({ children }) {
     return await response.json();
   };
 
+  const getUserProfile = async (userId) => {
+    const response = await fetch(`http://localhost:4000/api/users/${userId}/profile`);
+    return await response.json();
+  };
+
+  const updateUserProfile = async (userId, profile) => {
+    const response = await fetch(`http://localhost:4000/api/users/${userId}/profile`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(profile),
+    });
+    const data = await response.json();
+
+    if (data.success && data.profile) {
+      setUser((prev) => (prev ? { ...prev, ...data.profile } : prev));
+    }
+
+    return data;
+  };
+
   
 
   return (
@@ -137,6 +157,8 @@ export function AuthProvider({ children }) {
         getTasksForUser,
         editTask,
         deleteTask,
+        getUserProfile,
+        updateUserProfile,
       }}
     >
       {children}

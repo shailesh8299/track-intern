@@ -8,6 +8,7 @@ import SignupPage from "./components/SignupPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Navbar from "./components/Navbar";
 import HomePage from "./components/Homepage";
+import ProfilePage from "./components/ProfilePage";
 
 function App() {
   return (
@@ -40,6 +41,30 @@ function App() {
             element={
               <ProtectedRoute role="admin">
                 <AdminPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/intern/profile"
+            element={
+              <ProtectedRoute role="intern">
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/supervisor/profile"
+            element={
+              <ProtectedRoute role="supervisor">
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/profile"
+            element={
+              <ProtectedRoute role="admin">
+                <ProfilePage />
               </ProtectedRoute>
             }
           />
